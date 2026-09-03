@@ -1,7 +1,7 @@
 defmodule Managoat.Runner.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
   @source_url "https://github.com/managoat/managoat_runner"
 
   def project do
@@ -22,7 +22,7 @@ defmodule Managoat.Runner.MixProject do
         # the names, the two hosts and the fake daemon, all driven end to end
         # by the conformance suite against Managoat.Runner.Host.Local. Raise
         # it as the library's own tests grow; never lower it.
-        summary: [threshold: 85]
+        summary: [threshold: 97]
       ]
     ]
   end

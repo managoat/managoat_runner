@@ -21,6 +21,16 @@ defmodule Managoat.Runner.FakeDaemon do
       run as real processes emitting real frames; sessions journal every
       frame and `attach` replays from byte zero.
 
+  `drop` is the one instruction that is not a session frame. The protocol
+  has no way for a session to end without an exit code — the daemon watches
+  the process and reports what it exits with — so the only way a subscriber
+  loses a command's exit is the connection going away. `drop` therefore
+  stops the socket, and the subscriber gets the
+  `{:error, %{ref: ref}, :runner_disconnected}` that `Connection`'s
+  teardown broadcasts, which is what `Managoat.Sandbox`'s closes-without-an-
+  exit-frame rule asks this adapter for. It ends the whole connection, so a
+  script that uses it is the last thing that daemon does.
+
   `start/2` connects a daemon for `runner_id`; `stop/1` disconnects it (the
   socket process exits, so callers see the disconnected errors). It is the
   executable form of the protocol description in `Connection`'s moduledoc —
@@ -133,6 +143,14 @@ defmodule Managoat.Runner.FakeDaemon do
 
       {:replay, req_id, frames} ->
         Enum.each(frames, &push(state, Map.put(&1, "replay_for", req_id)))
+        daemon_loop(state)
+
+      :drop_connection ->
+        # `:normal` rather than `:shutdown`: the socket is linked to whoever
+        # started the daemon (a test process), and a non-normal exit would
+        # take it down. `Connection.terminate/2` runs either way, which is
+        # the point of the drop.
+        GenServer.stop(state.socket, :normal)
         daemon_loop(state)
 
       {:session_done, session_id, code} ->
@@ -336,7 +354,7 @@ defmodule Managoat.Runner.FakeDaemon do
       {:stdout, d} -> emit(daemon, session_id, "stdout", d)
       {:stderr, d} -> emit(daemon, session_id, "stderr", d)
       {:exit, c} -> finish(daemon, session_id, c)
-      :drop -> finish(daemon, session_id, 0)
+      :drop -> drop(daemon)
       :stay -> stay(daemon, session_id)
     end)
 
@@ -366,6 +384,12 @@ defmodule Managoat.Runner.FakeDaemon do
 
   defp finish(daemon, session_id, code) do
     send(daemon, {:session_done, session_id, code})
+    exit(:normal)
+  end
+
+  # No exit frame, ever: the connection goes instead. See the moduledoc.
+  defp drop(daemon) do
+    send(daemon, :drop_connection)
     exit(:normal)
   end
 end

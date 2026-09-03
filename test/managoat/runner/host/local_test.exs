@@ -69,7 +69,7 @@ defmodule Managoat.Runner.Host.LocalTest do
   end
 
   test "child_spec starts the registry the host reads" do
-    spec = Local.child_spec([])
+    spec = Local.child_spec()
     assert {Registry, :start_link, [opts]} = spec.start
     assert opts[:name] == Local.registry()
     assert opts[:keys] == :unique

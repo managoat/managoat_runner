@@ -6,7 +6,10 @@ defmodule Managoat.Runner.ConnectionTest do
   `Managoat.Runner.Host.Local`) while every callback lands in the test's
   mailbox — the init map's `host:` is what lets the two run side by side.
   """
-  use ExUnit.Case, async: true
+  # These tests deliberately register live and non-responsive processes in
+  # the application-wide reference host. Keep them out of the async pool so
+  # `Adapter.list_all_names/0` tests never observe a transient fake runner.
+  use ExUnit.Case, async: false
 
   alias Managoat.Runner.Adapter
   alias Managoat.Runner.Connection
@@ -142,6 +145,132 @@ defmodule Managoat.Runner.ConnectionTest do
     FakeDaemon.stop(daemon)
 
     assert_receive {:runner_reply, ^ref, {:error, {:unavailable, :runner_disconnected}}}
+  end
+
+  test "call/3 distinguishes a process that dies from one that stops replying" do
+    dead_id = "dead-#{System.unique_integer([:positive])}"
+    timeout_id = "timeout-#{System.unique_integer([:positive])}"
+    parent = self()
+
+    spawn(fn ->
+      :ok = Local.register(dead_id, %{})
+      send(parent, {:registered, dead_id})
+      receive do: ({:rpc, _from, _ref, _payload, _subscribe} -> exit(:daemon_crashed))
+    end)
+
+    assert_receive {:registered, ^dead_id}
+
+    assert {:error, {:unavailable, :runner_disconnected}} =
+             Connection.call(dead_id, %{op: "list"}, timeout: 100)
+
+    waiter =
+      spawn(fn ->
+        :ok = Local.register(timeout_id, %{})
+        send(parent, {:registered, timeout_id})
+
+        receive do
+          {:rpc, _from, _ref, _payload, _subscribe} ->
+            receive do: (:stop -> :ok)
+        end
+      end)
+
+    assert_receive {:registered, ^timeout_id}
+
+    assert {:error, {:unavailable, :runner_timeout}} =
+             Connection.call(timeout_id, %{op: "list"}, timeout: 10)
+
+    send(waiter, :stop)
+  end
+
+  test "wire replies reject malformed shapes and stream data degrades safely" do
+    ref = make_ref()
+
+    state = %{
+      runner_id: @runner_id,
+      pending: %{7 => {self(), ref, nil}},
+      subs: %{"s-1" => [{self(), ref, 7}]},
+      owners: %{}
+    }
+
+    malformed = Jason.encode!(%{"id" => 7, "ok" => "not-a-boolean"})
+    assert {:ok, state} = Connection.handle_in({malformed, [opcode: :text]}, state)
+    assert state.pending == %{}
+
+    assert_receive {:runner_reply, ^ref,
+                    {:error, {:provider, :runner, {:malformed_reply, %{"id" => 7}}}}}
+
+    # A late or duplicate reply is ignored rather than delivered to another caller.
+    assert {:ok, ^state} =
+             Connection.handle_in(
+               {Jason.encode!(%{"id" => 99, "ok" => true}), [opcode: :text]},
+               state
+             )
+
+    stderr =
+      Jason.encode!(%{"stream" => "stderr", "session_id" => "s-1", "data" => "not base64"})
+
+    assert {:ok, ^state} = Connection.handle_in({stderr, [opcode: :text]}, state)
+    assert_receive {:stderr, %{ref: ^ref}, "not base64"}
+
+    missing_data = Jason.encode!(%{"stream" => "stdout", "session_id" => "s-1"})
+    assert {:ok, ^state} = Connection.handle_in({missing_data, [opcode: :text]}, state)
+    assert_receive {:stdout, %{ref: ^ref}, ""}
+
+    unknown = Jason.encode!(%{"stream" => "progress", "session_id" => "s-1"})
+    assert {:ok, ^state} = Connection.handle_in({unknown, [opcode: :text]}, state)
+    refute_receive _
+    assert {:ok, ^state} = Connection.handle_info(:unexpected, state)
+  end
+
+  test "unsubscribe detaches only after the final local subscriber leaves" do
+    first = make_ref()
+    second = make_ref()
+
+    state = %{
+      runner_id: @runner_id,
+      subs: %{"s-1" => [{self(), first, 1}, {self(), second, 2}]},
+      owners: %{}
+    }
+
+    assert {:ok, state} = Connection.handle_info({:unsubscribe, "s-1", first}, state)
+    assert state.subs == %{"s-1" => [{self(), second, 2}]}
+
+    assert {:push, {:text, detach}, state} =
+             Connection.handle_info({:unsubscribe, "s-1", second}, state)
+
+    assert state.subs == %{}
+    assert %{"id" => 0, "op" => "detach", "session_id" => "s-1"} = Jason.decode!(detach)
+
+    # Repeating an unsubscribe is total and still leaves the daemon detached.
+    assert {:push, {:text, _}, ^state} =
+             Connection.handle_info({:unsubscribe, "s-1", make_ref()}, state)
+  end
+
+  test "an owner exit drops its sessions without disturbing other owners" do
+    owner = spawn(fn -> receive do: (:stop -> :ok) end)
+    owner_ref = make_ref()
+    survivor_ref = make_ref()
+
+    state = %{
+      runner_id: @runner_id,
+      subs: %{
+        "gone" => [{owner, owner_ref, 1}],
+        "shared" => [{owner, owner_ref, 2}, {self(), survivor_ref, 3}]
+      },
+      owners: %{owner => make_ref()}
+    }
+
+    assert {:push, [{:text, detach}], state} =
+             Connection.handle_info({:DOWN, make_ref(), :process, owner, :normal}, state)
+
+    assert %{"op" => "detach", "session_id" => "gone"} = Jason.decode!(detach)
+    assert state.subs == %{"shared" => [{self(), survivor_ref, 3}]}
+    refute Map.has_key?(state.owners, owner)
+
+    assert {:ok, ^state} =
+             Connection.handle_info({:DOWN, make_ref(), :process, owner, :normal}, state)
+
+    send(owner, :stop)
   end
 
   test "non-JSON and binary frames close the socket with 1003" do

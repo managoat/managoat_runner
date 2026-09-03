@@ -10,6 +10,15 @@ the package ships without a bump fails the release gate.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-03
+
+### Changed
+
+- Raised the test coverage gate from 85% to 97% after adding behavioral
+  coverage for connection failure classification, malformed daemon replies,
+  stream decoding, subscription cleanup, and the fake daemon's stderr and
+  missing-session contracts.
+
 ## [0.2.0] - 2026-09-03
 
 ### Changed

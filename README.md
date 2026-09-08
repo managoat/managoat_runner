@@ -162,9 +162,10 @@ and
 [ADR 0036](https://github.com/BinaryBourbon/fountain/blob/main/decisions/0036-firecracker-runner-backend.md)
 (the microVM backend behind the same protocol).
 
-Not yet on hex: this package depends on `managoat_sandbox`, which cannot
-publish while its Sprites client is a git dependency. The sandbox library
-graduates first; this one then pins its hex version.
+Published on [Hex](https://hex.pm/packages/managoat_runner). The package accepts
+Sandbox 0.2 and 0.3. The runner does not advertise the optional
+`:terminate_session` capability; hosts requiring confirmed session termination
+must select a provider that supports it.
 
 ## Licence
 

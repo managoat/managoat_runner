@@ -10,6 +10,11 @@ the package ships without a bump fails the release gate.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-08
+
+- Accept Sandbox 0.4 alongside 0.2 and 0.3. The runner does not advertise
+  fresh creation or confirmed remote session termination.
+
 ## [0.2.2]
 
 - Accept Sandbox 0.3 alongside 0.2. The runner still does not advertise confirmed session termination.

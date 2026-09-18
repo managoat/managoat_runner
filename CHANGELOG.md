@@ -10,6 +10,13 @@ the package ships without a bump fails the release gate.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-18
+
+- Accept Sandbox 0.5 alongside 0.2, 0.3 and 0.4 so consumers can use its
+  provider deadline and force-termination changes without overriding this
+  dependency. Runner capabilities and wire behavior are unchanged; it still
+  does not advertise confirmed remote session termination.
+
 ## [0.2.3] - 2026-09-08
 
 - Accept Sandbox 0.4 alongside 0.2 and 0.3. The runner does not advertise

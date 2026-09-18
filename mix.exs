@@ -1,7 +1,7 @@
 defmodule Managoat.Runner.MixProject do
   use Mix.Project
 
-  @version "0.2.3"
+  @version "0.2.4"
   @source_url "https://github.com/managoat/managoat_runner"
 
   def project do
@@ -57,7 +57,7 @@ defmodule Managoat.Runner.MixProject do
       # (#1345): the umbrella resolves it the same way apps/fountain does,
       # and `mix hex.build` for this app succeeds inside the umbrella, which
       # is what lets it graduate next.
-      {:managoat_sandbox, "~> 0.2.0 or ~> 0.3.0 or ~> 0.4.0"},
+      {:managoat_sandbox, "~> 0.2.0 or ~> 0.3.0 or ~> 0.4.0 or ~> 0.5.0"},
       # The WebSock behaviour only. The adapter that mounts a handler on a
       # Plug connection (websock_adapter) belongs to the host application.
       {:websock, "~> 0.5"},

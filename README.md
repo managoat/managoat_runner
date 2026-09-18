@@ -163,7 +163,7 @@ and
 (the microVM backend behind the same protocol).
 
 Published on [Hex](https://hex.pm/packages/managoat_runner). The package accepts
-Sandbox 0.2, 0.3 and 0.4. The runner does not advertise the optional
+Sandbox 0.2, 0.3, 0.4 and 0.5. The runner does not advertise the optional
 `:terminate_session` or `:create_new` capabilities; hosts requiring them must
 select a provider that supports them.
 

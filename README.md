@@ -1,5 +1,13 @@
 # Managoat.Runner
 
+> **Archived 2026-10-15.** [Fountain](https://github.com/managoat/fountain),
+> this library's only consumer, removed the self-hosted runner and this
+> dependency with it
+> ([ADR 0071](https://github.com/managoat/fountain/blob/main/decisions/0071-hosted-sandbox-providers-only.md),
+> [managoat/fountain#2676](https://github.com/managoat/fountain/issues/2676)).
+> Every release on Hex is retired; they stay installable, but there will be no
+> further releases.
+
 The self-hosted runner: a `Managoat.Sandbox` adapter whose transport is a
 WebSocket that a daemon on the user's own machine dials *out* to the platform.
 This package is the platform's end of that protocol: the connection process
